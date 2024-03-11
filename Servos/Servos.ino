@@ -63,6 +63,7 @@ void loop() {
           }
         }
         String state = servoIndex == 5 ? "ready" : "moving";
+        delay(3000);
         client.println(state);
       }
     }
