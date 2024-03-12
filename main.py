@@ -46,13 +46,13 @@ def processImage(frame):
     print("Used threshold value: ", ret)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
-    close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+    close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
 
     contours = cv2.findContours(close, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = contours[0] if len(contours) == 2 else contours[1]
 
     min_area = 300
-    max_area = 1500
+    max_area = 700
     image_number = 0  
 
     cv2.drawContours(image, contours, -1, (0, 0, 255), 3)
@@ -67,17 +67,19 @@ def processImage(frame):
             coordList.append(rect[0])
             cv2.circle(frame, (int(rect[0][0]), int(rect[0][1])), 5, (255, 0, 0), -1)
     print(coordList)
+    cv2.imshow('Video Stream', frame)
     return coordList
 
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect(('192.168.100.121', 12345))
+#s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#s.connect(('192.168.43.181', 12345))
 
-#cap = cv2.VideoCapture(0)
-
-#ret, frame = cap.read()
-#if ret:
-sendAngles(calculateJoints(0,0,500))
-#cv2.imshow('Video Stream', frame)
-#cv2.waitKey(0)
-#cap.release()
+cap = cv2.VideoCapture(0)
+while True:
+    ret, frame = cap.read()
+    if ret:
+        processImage(frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+cap.release()
+cv2.destroyAllWindows()
