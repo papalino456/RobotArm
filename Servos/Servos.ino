@@ -44,15 +44,19 @@ void loop() {
             switch (servoIndex) {
               case 0:
                 servo1.write(angle);
+                delay(500);
                 break;
               case 1:
                 servo2.write(angle);
+                delay(500);
                 break;
               case 2:
                 servo3.write(angle);
+                delay(500);
                 break;
               case 3:
                 servo4.write(angle);
+                delay(500);
                 break;
               case 4:
                 servo5.write(angle);
@@ -63,7 +67,7 @@ void loop() {
           }
         }
         String state = servoIndex == 5 ? "ready" : "moving";
-        delay(3000);
+        delay(1000);
         client.println(state);
       }
     }

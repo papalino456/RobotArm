@@ -2,6 +2,9 @@ import socket
 import cv2
 import numpy as np
 import math
+import time
+pixelZero = (235, 70)  # in pixels
+RealMMZeroOffset = (340, 30)  # in mm
 
 def sendAngles(angles):
     s.sendall(bytes(','.join(map(str, angles)), 'utf-8'))
@@ -24,29 +27,27 @@ def calculateJoints(x,y,z,cubeRot=0,bOpen=False):
     if actual_distance > max_radius:
         print("Point outside range, clamping x, y, z values")
 
-    cosTheta3 = max(min(((x**2+y**2+z**2-A3**2-A4**2)/(2*A3*A4)), 1), -1)
+    cosTheta3 = max(min(((x**2+y**2+z**2-A3**2-(A4+A5)**2)/(2*A3*(A4+A5))), 1), -1)
     senTheta3 = -math.sqrt(1-cosTheta3**2)
     theta1 = math.degrees(math.atan2(y,x))
     #theta2 = math.degrees(math.atan2(z,x) + math.acos((A3**2+(x**2+z**2)-(A4+A5)**2)/(2*A3*(math.sqrt(x**2+z**2))))) #OLD theta 
-    theta2 = math.degrees(math.atan2(z,math.sqrt(x**2+y**2))-math.atan2(A4*senTheta3,A3+A4*cosTheta3))
+    theta2 = math.degrees(math.atan2(z,math.sqrt(x**2+y**2))-math.atan2((A4+A5)*senTheta3,A3+(A4+A5)*cosTheta3))
     #theta3 = -(math.degrees(math.acos((A3**2+(A4+A5)**2-(math.sqrt(x**2+z**2))**2)/(2*A3*(A4+A5))) - math.pi)) #OLD theta
     theta3 = -(math.degrees((math.atan2(senTheta3,cosTheta3))))
     #print(theta1, theta2, theta3)
-    openVal = 90 if bOpen else 0
+    openVal = 70 if bOpen else 0
     joints = [theta1, theta2, theta3, cubeRot, openVal]
     return joints
 
 def processImage(frame):
     coordList = []
+    #image process
     image = frame
-
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
     blur = cv2.medianBlur(gray, 5)
-
     sharpen_kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
     sharpen = cv2.filter2D(blur, -1, sharpen_kernel)
-    
+
     ret, thresh = cv2.threshold(sharpen, 0, 255, cv2.THRESH_OTSU)
     print("Used threshold value: ", ret)
 
@@ -55,40 +56,60 @@ def processImage(frame):
 
     contours = cv2.findContours(close, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = contours[0] if len(contours) == 2 else contours[1]
-
-    min_area = 300
-    max_area = 700
+    cv2.drawContours(image, contours, -1, (0, 0, 255), 3)
+    cv2.circle(frame, pixelZero, 5, (255, 0, 255), -1)
+    min_area = 500
+    max_area = 2500
     image_number = 0  
 
-    cv2.drawContours(image, contours, -1, (0, 0, 255), 3)
-    cv2.circle(image, (0, 0), 5, (255, 0, 0), -1)
+    #square detection
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area > min_area and area < max_area:
-            rect = cv2.minAreaRect(cnt)
-            box = cv2.boxPoints(rect)
-            box = np.intp(box)
+        rect = cv2.minAreaRect(cnt)
+        box = cv2.boxPoints(rect)
+        box = np.intp(box)
+        width = rect[1][0]
+        height = rect[1][1]
+        if area > min_area and area < max_area and (width/height > 0.75 and width/height < 1.25):  # Check if shape is almost square
             cv2.drawContours(image, [box], 0, (36,255,12), 2)
             coordList.append(rect[0])
             cv2.circle(frame, (int(rect[0][0]), int(rect[0][1])), 5, (255, 0, 0), -1)
-    print(coordList)
     cv2.imshow('Video Stream', frame)
+    
     return coordList
 
+def pixelToMM(coordList):
+    mmList = []
+    for (x, y) in coordList:
+        # Convert pixel coordinates to mm from pixelZero
+        x_mm_from_zero = -((x + pixelZero[0]) * 100) / 254
+        y_mm_from_zero = ((y + pixelZero[1]) * 100) / 254
+        # Translate coordinates to coincide with RealMMZeroOffset
+        RealX = x_mm_from_zero + RealMMZeroOffset[0]
+        RealY = y_mm_from_zero + RealMMZeroOffset[1]
+        mmList.append((RealX, RealY))
+    print(mmList)
+
+    return mmList
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#s.connect(('192.168.43.181', 12345))
+s.connect(('192.168.43.181', 12345))
 
-cap = cv2.VideoCapture(0)
-while True:
-    ret, frame = cap.read()
-    if ret:
-        coordList = processImage(frame)
-        try:
-            calculateJoints(coordList[0][0], coordList[0][1], 0)
-        except IndexError:
-            print("No object found")
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+ret, frame = cap.read()
+if ret:
+    coordList = pixelToMM(processImage(frame))
+    if coordList:
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], -35,48,True))
+        time.sleep(2)
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], -35,48,False))
+        time.sleep(2)
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 100,48,False))
+    else:
+        print("No object found")
+cv2.waitKey(0)
 cap.release()
 cv2.destroyAllWindows()
