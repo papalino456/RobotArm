@@ -143,9 +143,9 @@ if ret:
     coordList = pixelToMM(pixelList, pixelDiameter)
     print(coordList)
     if coordList:
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 0,48,True))
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 50,48,True))
         time.sleep(2)
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 0,48,False))
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 50,48,False))
         time.sleep(2)
         sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 100,48,False))
     else:
