@@ -38,7 +38,7 @@ def calculateJoints(x,y,z,cubeRot=48,bOpen=False):
     joints = [theta1, theta2, theta3, cubeRot, openVal]
     return joints
 
-coordList = calculateJoints(100,200,50,48,False)
+coordList = calculateJoints(200,00,200,48,True)
 time.sleep(2)
 sendAngles(coordList)
 

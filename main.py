@@ -3,8 +3,7 @@ import cv2
 import numpy as np
 import math
 import time
-pixelZero = (235, 70)  # in pixels
-RealMMZeroOffset = (340, 30)  # in mm
+
 
 def sendAngles(angles):
     s.sendall(bytes(','.join(map(str, angles)), 'utf-8'))
@@ -39,6 +38,41 @@ def calculateJoints(x,y,z,cubeRot=0,bOpen=False):
     joints = [theta1, theta2, theta3, cubeRot, openVal]
     return joints
 
+def findZero(frame):
+    # Convert image to HSV color space
+    image = frame
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.medianBlur(gray, 5)
+    sharpen_kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+    sharpen = cv2.filter2D(blur, -1, sharpen_kernel)
+
+    ret, thresh = cv2.threshold(sharpen, 0, 255, cv2.THRESH_OTSU)
+    print("Used threshold value: ", ret)
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+    close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
+    cv2.imshow('close', close)
+    circles = cv2.HoughCircles(close, cv2.HOUGH_GRADIENT, 1, 20, param1=50, param2=20, minRadius=10, maxRadius=30)
+    
+    # If circles are found, draw them and set pixelDiameter to the diameter of the first found circle
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+        pixelDiameter = circles[0][0][2] * 2  # Diameter is twice the radius
+        print("Pixel Diameter: ", pixelDiameter)
+        cv2.circle(frame, (circles[0][0][0], circles[0][0][1]), 5, (255, 0, 255), -1)
+        cv2.circle(frame, (circles[0][0][0], circles[0][0][1]), 2, (0, 0, 255), 3)
+        for i in circles[0, :]:
+            # draw the outer circle
+            cv2.circle(frame, (i[0], i[1]), i[2], (0, 255, 0), 2)
+            # draw the center of the circle
+            cv2.circle(frame, (i[0], i[1]), 2, (0, 0, 255), 3)
+        zero = (circles[0][0][0], circles[0][0][1])
+        cv2.imshow('circles', frame)
+    else:
+        zero = None
+        pixelDiameter = None  # Ensure pixelDiameter is None if no circles are found
+    return zero, pixelDiameter
+
 def processImage(frame):
     coordList = []
     #image process
@@ -58,7 +92,7 @@ def processImage(frame):
     contours = contours[0] if len(contours) == 2 else contours[1]
     cv2.drawContours(image, contours, -1, (0, 0, 255), 3)
     cv2.circle(frame, pixelZero, 5, (255, 0, 255), -1)
-    min_area = 500
+    min_area = 400
     max_area = 2500
     image_number = 0  
 
@@ -76,14 +110,14 @@ def processImage(frame):
             cv2.circle(frame, (int(rect[0][0]), int(rect[0][1])), 5, (255, 0, 0), -1)
     cv2.imshow('Video Stream', frame)
     
-    return coordList
+    return frame, coordList
 
-def pixelToMM(coordList):
+def pixelToMM(coordList, pixelDiameter):
     mmList = []
     for (x, y) in coordList:
         # Convert pixel coordinates to mm from pixelZero
-        x_mm_from_zero = -((x + pixelZero[0]) * 100) / 254
-        y_mm_from_zero = ((y + pixelZero[1]) * 100) / 254
+        x_mm_from_zero = -((x + pixelZero[0]) * 15) / pixelDiameter
+        y_mm_from_zero = ((y + pixelZero[1]) * 15) / pixelDiameter
         # Translate coordinates to coincide with RealMMZeroOffset
         RealX = x_mm_from_zero + RealMMZeroOffset[0]
         RealY = y_mm_from_zero + RealMMZeroOffset[1]
@@ -95,17 +129,23 @@ def pixelToMM(coordList):
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect(('192.168.43.181', 12345))
 
-cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
+
 ret, frame = cap.read()
 if ret:
-    coordList = pixelToMM(processImage(frame))
+    pixelZero, pixelDiameter = findZero(frame)
+    RealMMZeroOffset = (270, 30)  # in mm
+    image, pixelList = processImage(frame)
+    
+    coordList = pixelToMM(pixelList, pixelDiameter)
+    print(coordList)
     if coordList:
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], -35,48,True))
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 0,48,True))
         time.sleep(2)
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], -35,48,False))
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 0,48,False))
         time.sleep(2)
         sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 100,48,False))
     else:
