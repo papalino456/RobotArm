@@ -13,29 +13,28 @@ def sendAngles(angles):
 
 
 def calculateJoints(x,y,z,cubeRot=0,bOpen=False):
-    A1=55.0
-    A2=30.0
+    A1=55.0  # Z offset from the 0 coord to the first movable articulation theta1
+    A2=30.0  # Z offset between theta1 and theta2
     A3=200.0
     A4=200.0
-    A5=90.0
+    A5=100.0
+    # Adjust z by A1 and A2 offsets
+    z_adjusted = z - A1 - A2
     # Calculate the radius of the semi-sphere domain of the robot
     max_radius = A3 + A4 + A5
-    # Calculate the actual distance of the point from the origin
-    actual_distance = math.sqrt(x**2 + y**2 + z**2)
+    # Calculate the actual distance of the point from the origin considering z adjustments
+    actual_distance = math.sqrt(x**2 + y**2 + z_adjusted**2)
     # Clamp the x, y, z values if they are outside the semi-sphere domain
     if actual_distance > max_radius:
         print("Point outside range, clamping x, y, z values")
 
-    cosTheta3 = max(min(((x**2+y**2+z**2-A3**2-(A4+A5)**2)/(2*A3*(A4+A5))), 1), -1)
+    cosTheta3 = max(min(((x**2+y**2+z_adjusted**2-A3**2-(A4+A5)**2)/(2*A3*(A4+A5))), 1), -1)
     senTheta3 = -math.sqrt(1-cosTheta3**2)
     theta1 = math.degrees(math.atan2(y,x))
-    #theta2 = math.degrees(math.atan2(z,x) + math.acos((A3**2+(x**2+z**2)-(A4+A5)**2)/(2*A3*(math.sqrt(x**2+z**2))))) #OLD theta 
-    theta2 = math.degrees(math.atan2(z,math.sqrt(x**2+y**2))-math.atan2((A4+A5)*senTheta3,A3+(A4+A5)*cosTheta3))
-    #theta3 = -(math.degrees(math.acos((A3**2+(A4+A5)**2-(math.sqrt(x**2+z**2))**2)/(2*A3*(A4+A5))) - math.pi)) #OLD theta
+    theta2 = math.degrees(math.atan2(z_adjusted,math.sqrt(x**2+y**2))-math.atan2((A4+A5)*senTheta3,A3+(A4+A5)*cosTheta3))
     theta3 = -(math.degrees((math.atan2(senTheta3,cosTheta3))))
-    #print(theta1, theta2, theta3)
     openVal = 70 if bOpen else 0
-    joints = [theta1, theta2, theta3, cubeRot, openVal]
+    joints = [theta1, theta2-2, theta3-2, cubeRot, openVal]
     return joints
 
 def findZero(frame):
@@ -51,8 +50,8 @@ def findZero(frame):
 
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
     close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
-    cv2.imshow('close', close)
-    circles = cv2.HoughCircles(close, cv2.HOUGH_GRADIENT, 1, 20, param1=50, param2=20, minRadius=10, maxRadius=30)
+    #cv2.imshow('close', close)
+    circles = cv2.HoughCircles(thresh, cv2.HOUGH_GRADIENT, 1, 20, param1=50, param2=20, minRadius=10, maxRadius=30)
     
     # If circles are found, draw them and set pixelDiameter to the diameter of the first found circle
     if circles is not None:
@@ -67,7 +66,7 @@ def findZero(frame):
             # draw the center of the circle
             cv2.circle(frame, (i[0], i[1]), 2, (0, 0, 255), 3)
         zero = (circles[0][0][0], circles[0][0][1])
-        cv2.imshow('circles', frame)
+        #cv2.imshow('circles', frame)
     else:
         zero = None
         pixelDiameter = None  # Ensure pixelDiameter is None if no circles are found
@@ -104,7 +103,7 @@ def processImage(frame):
         box = np.intp(box)
         width = rect[1][0]
         height = rect[1][1]
-        if area > min_area and area < max_area and (width/height > 0.75 and width/height < 1.25):  # Check if shape is almost square
+        if area > min_area and area < max_area and (width/height > 0.6 and width/height < 1.4):  # Check if shape is almost square
             cv2.drawContours(image, [box], 0, (36,255,12), 2)
             coordList.append(rect[0])
             cv2.circle(frame, (int(rect[0][0]), int(rect[0][1])), 5, (255, 0, 0), -1)
@@ -116,11 +115,11 @@ def pixelToMM(coordList, pixelDiameter):
     mmList = []
     for (x, y) in coordList:
         # Convert pixel coordinates to mm from pixelZero
-        x_mm_from_zero = -((x + pixelZero[0]) * 15) / pixelDiameter
-        y_mm_from_zero = ((y + pixelZero[1]) * 15) / pixelDiameter
+        x_mm_from_zero = -((x + pixelZero[0]) * 10) / pixelDiameter
+        y_mm_from_zero = ((y + pixelZero[1]) * 10) / pixelDiameter
         # Translate coordinates to coincide with RealMMZeroOffset
         RealX = x_mm_from_zero + RealMMZeroOffset[0]
-        RealY = y_mm_from_zero + RealMMZeroOffset[1]
+        RealY = y_mm_from_zero - RealMMZeroOffset[1]
         mmList.append((RealX, RealY))
     print(mmList)
 
@@ -136,16 +135,18 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 ret, frame = cap.read()
 if ret:
-    pixelZero, pixelDiameter = findZero(frame)
-    RealMMZeroOffset = (270, 30)  # in mm
+    pixelZero, pixelDiameternt = findZero(frame)
+    pixelDiameter = 25.5
+    global RealMMZeroOffset
+    RealMMZeroOffset = (230, 0)  # in mm
     image, pixelList = processImage(frame)
     
     coordList = pixelToMM(pixelList, pixelDiameter)
     print(coordList)
     if coordList:
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 50,48,True))
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 35,48,True))
         time.sleep(2)
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 50,48,False))
+        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 35,48,False))
         time.sleep(2)
         sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 100,48,False))
     else:
