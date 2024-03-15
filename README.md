@@ -1,3 +1,4 @@
+CC Sebastian Barrio Bejarano
 # RobotArm
 Esp32, IoT, computer vision enabled servo robot arm  please leave a star😄
 
