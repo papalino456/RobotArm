@@ -6,10 +6,13 @@ import time
 
 
 def sendAngles(angles):
-    s.sendall(bytes(','.join(map(str, angles)), 'utf-8'))
-    data = s.recv(1024)
-    print(angles)
-    print('Received', repr(data.decode('utf-8')))
+    try:
+        s.sendall(bytes(','.join(map(str, angles)), 'utf-8'))
+        data = s.recv(1024)
+        print(angles)
+        print('Received', repr(data.decode('utf-8')))
+    except ConnectionResetError as e:
+        print("Connection was closed by the remote host:", e)
 
 
 def calculateJoints(x,y,z,cubeRot=0,bOpen=False):
@@ -132,25 +135,67 @@ cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
+#10 coordinates for dice positions
+finalPosList = [
+    (40,260),
+    (80,260),
+    (40,220),
+    (80,220),
+    (40,180),
+    (80,180),
+    (40,140),
+    (80,140),
+]
 
-ret, frame = cap.read()
+sendAngles(calculateJoints(200,0,280,48,True))
+
+ret, frame1 = cap.read()
 if ret:
-    pixelZero, pixelDiameternt = findZero(frame)
-    pixelDiameter = 25.5
+    pixelZero, pixelDiameternt = findZero(frame1)
+    pixelDiameter = 24.5
     global RealMMZeroOffset
-    RealMMZeroOffset = (230, 0)  # in mm
+    RealMMZeroOffset = (260, -20)  # in mm
+    posIndex = 0
+
+while True:
+    sendAngles(calculateJoints(200,0,280,48,True))
+    time.sleep(2)
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    ret, frame = cap.read()
     image, pixelList = processImage(frame)
-    
     coordList = pixelToMM(pixelList, pixelDiameter)
+
     print(coordList)
     if coordList:
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 35,48,True))
+        #go to the cube coordinates
+        sendAngles(calculateJoints(coordList[-1][0], coordList[-1][1], 40,48,True))
         time.sleep(2)
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 35,48,False))
+        #close the gripper
+        sendAngles(calculateJoints(coordList[-1][0], coordList[-1][1], 40,48,False))
         time.sleep(2)
-        sendAngles(calculateJoints(coordList[0][0], coordList[0][1], 100,48,False))
+        #elevate the cube
+        sendAngles(calculateJoints(coordList[-1][0], coordList[-1][1], 150,48,False))
+        time.sleep(2)
+        #go to the final elevated position
+        sendAngles(calculateJoints(finalPosList[posIndex][0], finalPosList[posIndex][1], 150,48,False))
+        time.sleep(2)
+        #go to the final position
+        sendAngles(calculateJoints(finalPosList[posIndex][0], finalPosList[posIndex][1], 40,48,False))
+        time.sleep(2)
+        #open the gripper
+        sendAngles(calculateJoints(finalPosList[posIndex][0], finalPosList[posIndex][1],40,48,True))
+        time.sleep(2)
+
+        sendAngles(calculateJoints(finalPosList[posIndex][0], finalPosList[posIndex][1],150,48,True))
+        time.sleep(2)
+
+        posIndex += 1
+        
     else:
         print("No object found")
-cv2.waitKey(0)
-cap.release()
-cv2.destroyAllWindows()
+    cv2.waitKey(0)
+    cap.release()
+    cv2.destroyAllWindows()

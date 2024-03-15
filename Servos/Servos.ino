@@ -14,7 +14,7 @@ Servo servo4;
 Servo servo5;
 
 void setup() {
-  servo1.attach(26);
+  servo1.attach(26);;
   servo2.attach(13);
   servo3.attach(12);
   servo4.attach(14);
@@ -75,12 +75,15 @@ void loop() {
       if (client.available()) {
         String angles = client.readStringUntil('\n');
         Serial.println(angles);
+        float angleList[5];
         // Parse angles and set robot arm positions here
         int servoIndex = 0;
         int startPos = 0;
         for (int i = 0; i <= angles.length(); i++) {
           if (angles.charAt(i) == ',' || i == angles.length()) {
             float angle = angles.substring(startPos, i).toFloat();
+            angleList[servoIndex] = angle;
+            /*
             switch (servoIndex) {
               case 0:
                 servo1.write(angle);
@@ -102,16 +105,22 @@ void loop() {
                 servo5.write(angle);
                 break;
             }
-            servoIndex++;
+            */
             startPos = i + 1;
+            servoIndex++;
           }
         }
+          servo5.write(angleList[4]);
+          servo1.write(angleList[0]);
+          delay(500);
+          servo3.write(angleList[2]);
+          delay(500);
+          servo2.write(angleList[1]);
+          servo4.write(angleList[3]);
+          
         String state = servoIndex == 5 ? "ready" : "moving";
-        delay(1000);
         client.println(state);
       }
     }
-    client.stop();
-    Serial.println("Client disconnected");
   }
 }

@@ -8,9 +8,9 @@ s.connect(('192.168.43.181', 12345))
 
 def sendAngles(angles):
     s.sendall(bytes(','.join(map(str, angles)), 'utf-8'))
-    data = s.recv(1024)
+    #data = s.recv(1024)
     print(angles)
-    print('Received', repr(data.decode('utf-8')))
+    #print('Received', repr(data.decode('utf-8')))
 
 def calculateJoints(x,y,z,cubeRot=48,bOpen=False):
     A1=55.0
@@ -38,7 +38,7 @@ def calculateJoints(x,y,z,cubeRot=48,bOpen=False):
     joints = [theta1, theta2, theta3, cubeRot, openVal]
     return joints
 
-coordList = calculateJoints(200,00,200,48,True)
+coordList = calculateJoints(200,00,200,48,False)
 time.sleep(2)
 sendAngles(coordList)
 
