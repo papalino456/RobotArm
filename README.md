@@ -1,7 +1,7 @@
 CC Sebastian Barrio Bejarano
 # RobotArm
 Esp32, IoT, computer vision enabled servo robot arm  please leave a star😄
-![Alt text](https://github.com/papalino456/RobotArm/blob/main/Photo1.jpg?raw=true)
+![Alt text](https://github.com/papalino456/RobotArm/blob/main/Gallery/Photo1.jpeg?raw=true)
 
 # Files description
 ROBOTARM_STL: 3D models for printing the robot  
