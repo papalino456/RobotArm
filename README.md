@@ -1,6 +1,7 @@
 CC Sebastian Barrio Bejarano
 # RobotArm
-Esp32, IoT, computer vision enabled servo robot arm  please leave a star😄
+Esp32, IoT, computer vision enabled servo robot arm!
+![Alt text](https://github.com/papalino456/RobotArm/blob/main/Gallery/Robot%20Drawing-1.png?raw=true)
 ![Alt text](https://github.com/papalino456/RobotArm/blob/main/Gallery/Photo1.jpeg?raw=true)
 
 # Files description
